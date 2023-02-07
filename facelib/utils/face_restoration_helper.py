@@ -6,7 +6,8 @@ from torchvision.transforms.functional import normalize
 
 from facelib.detection import init_detection_model
 from facelib.parsing import init_parsing_model
-from facelib.utils.misc import img2tensor, imwrite, is_gray, bgr2gray
+from facelib.utils.misc import img2tensor, imwrite, is_gray, bgr2gray, adain_npy
+from basicsr.utils.misc import get_device
 
 
 def get_largest_face(det_faces, h, w):
@@ -97,7 +98,8 @@ class FaceRestoreHelper(object):
         self.pad_input_imgs = []
 
         if device is None:
-            self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+            # self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+            self.device = get_device()
         else:
             self.device = device
 
@@ -125,7 +127,7 @@ class FaceRestoreHelper(object):
             img = img[:, :, 0:3]
 
         self.input_img = img
-        self.is_gray = is_gray(img, threshold=5)
+        self.is_gray = is_gray(img, threshold=10)
         if self.is_gray:
             print('Grayscale input: True')
 
@@ -298,10 +300,12 @@ class FaceRestoreHelper(object):
                 torch.save(inverse_affine, save_path)
 
 
-    def add_restored_face(self, face):
+    def add_restored_face(self, restored_face, input_face=None):
         if self.is_gray:
-            face = bgr2gray(face) # convert img into grayscale
-        self.restored_faces.append(face)
+            restored_face = bgr2gray(restored_face) # convert img into grayscale
+            if input_face is not None:
+                restored_face = adain_npy(restored_face, input_face) # transfer the color
+        self.restored_faces.append(restored_face)
 
 
     def paste_faces_to_input_image(self, save_path=None, upsample_img=None, draw_box=False, face_upsampler=None):

@@ -100,7 +100,7 @@ You can put the testing images in the `inputs/TestWhole` folder. If you would li
 🧑🏻 Face Restoration (cropped and aligned face)
 ```
 # For cropped and aligned faces
-python inference_codeformer.py -w 0.5 --has_aligned --input_path [input folder]
+python inference_codeformer.py -w 0.5 --has_aligned --input_path [image folder]|[image path]
 ```
 
 :framed_picture: Whole Image Enhancement
@@ -108,12 +108,17 @@ python inference_codeformer.py -w 0.5 --has_aligned --input_path [input folder]
 # For whole image
 # Add '--bg_upsampler realesrgan' to enhance the background regions with Real-ESRGAN
 # Add '--face_upsample' to further upsample restorated face with Real-ESRGAN
-python inference_codeformer.py -w 0.7 --input_path [image folder/image path]
+python inference_codeformer.py -w 0.7 --input_path [image folder]|[image path]
 ```
 
 :clapper: Video Enhancement
 ```
+# For Windows/Mac users, please install ffmpeg first
+conda install -c conda-forge ffmpeg
+```
+```
 # For video clips
+# video path should end with '.mp4'|'.mov'|'.avi'
 python inference_codeformer.py --bg_upsampler realesrgan --face_upsample -w 1.0 --input_path [video path]
 ```
 
@@ -141,4 +146,4 @@ This project is licensed under <a rel="license" href="https://github.com/sczhou/
 This project is based on [BasicSR](https://github.com/XPixelGroup/BasicSR). Some codes are brought from [Unleashing Transformers](https://github.com/samb-t/unleashing-transformers), [YOLOv5-face](https://github.com/deepcam-cn/yolov5-face), and [FaceXLib](https://github.com/xinntao/facexlib). We also adopt [Real-ESRGAN](https://github.com/xinntao/Real-ESRGAN) to support background image enhancement. Thanks for their awesome works.
 
 ### Contact
-If you have any question, please feel free to reach me out at `shangchenzhou@gmail.com`.
+If you have any questions, please feel free to reach me out at `shangchenzhou@gmail.com`.

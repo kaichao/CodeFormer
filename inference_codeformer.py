@@ -6,9 +6,9 @@ import torch
 from torchvision.transforms.functional import normalize
 from basicsr.utils import imwrite, img2tensor, tensor2img
 from basicsr.utils.download_util import load_file_from_url
+from basicsr.utils.misc import gpu_is_available, get_device
 from facelib.utils.face_restoration_helper import FaceRestoreHelper
 from facelib.utils.misc import is_gray
-import torch.nn.functional as F
 
 from basicsr.utils.registry import ARCH_REGISTRY
 
@@ -20,8 +20,12 @@ def set_realesrgan():
     from basicsr.archs.rrdbnet_arch import RRDBNet
     from basicsr.utils.realesrgan_utils import RealESRGANer
 
-    cuda_is_available = torch.cuda.is_available()
-    half = True if cuda_is_available else False
+    use_half = False
+    if torch.cuda.is_available(): # set False in CPU/MPS mode
+        no_half_gpu_list = ['1650', '1660'] # set False for GPUs that don't support f16
+        if not True in [gpu in torch.cuda.get_device_name(0) for gpu in no_half_gpu_list]:
+            use_half = True
+
     model = RRDBNet(
         num_in_ch=3,
         num_out_ch=3,
@@ -37,10 +41,10 @@ def set_realesrgan():
         tile=args.bg_tile,
         tile_pad=40,
         pre_pad=0,
-        half=half, # need to set False in CPU mode
+        half=use_half
     )
 
-    if not cuda_is_available:  # CPU
+    if not gpu_is_available():  # CPU
         import warnings
         warnings.warn('Running on CPU now! Make sure your PyTorch version matches your CUDA.'
                         'The unoptimized RealESRGAN is slow on CPU. '
@@ -49,7 +53,8 @@ def set_realesrgan():
     return upsampler
 
 if __name__ == '__main__':
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    # device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    device = get_device()
     parser = argparse.ArgumentParser()
 
     parser.add_argument('-i', '--input_path', type=str, default='./inputs/whole_imgs', 
@@ -79,10 +84,10 @@ if __name__ == '__main__':
     # ------------------------ input & output ------------------------
     w = args.fidelity_weight
     input_video = False
-    if args.input_path.endswith(('jpg', 'png')): # input single img path
+    if args.input_path.endswith(('jpg', 'jpeg', 'png', 'JPG', 'JPEG', 'PNG')): # input single img path
         input_img_list = [args.input_path]
         result_root = f'results/test_img_{w}'
-    elif args.input_path.endswith(('mp4', 'mov', 'avi')): # input video path
+    elif args.input_path.endswith(('mp4', 'mov', 'avi', 'MP4', 'MOV', 'AVI')): # input video path
         from basicsr.utils.video_util import VideoReader, VideoWriter
         input_img_list = []
         vidreader = VideoReader(args.input_path)
@@ -100,13 +105,16 @@ if __name__ == '__main__':
         if args.input_path.endswith('/'):  # solve when path ends with /
             args.input_path = args.input_path[:-1]
         # scan all the jpg and png images
-        input_img_list = sorted(glob.glob(os.path.join(args.input_path, '*.[jp][pn]g')))
+        input_img_list = sorted(glob.glob(os.path.join(args.input_path, '*.[jpJP][pnPN]*[gG]')))
         result_root = f'results/{os.path.basename(args.input_path)}_{w}'
 
     if not args.output_path is None: # set output path
         result_root = args.output_path
 
     test_img_num = len(input_img_list)
+    if test_img_num == 0:
+        raise FileNotFoundError("\nInput file is not found.")
+
     # ------------------ set up background upsampler ------------------
     if args.bg_upsampler == 'realesrgan':
         bg_upsampler = set_realesrgan()
@@ -115,11 +123,10 @@ if __name__ == '__main__':
 
     # ------------------ set up face upsampler ------------------
     if args.face_upsample:
-        face_upsampler = None
-        # if bg_upsampler is not None:
-        #     face_upsampler = bg_upsampler
-        # else:
-        #     face_upsampler = set_realesrgan()
+        if bg_upsampler is not None:
+            face_upsampler = bg_upsampler
+        else:
+            face_upsampler = set_realesrgan()
     else:
         face_upsampler = None
 
@@ -172,7 +179,7 @@ if __name__ == '__main__':
         if args.has_aligned: 
             # the input faces are already cropped and aligned
             img = cv2.resize(img, (512, 512), interpolation=cv2.INTER_LINEAR)
-            face_helper.is_gray = is_gray(img, threshold=5)
+            face_helper.is_gray = is_gray(img, threshold=10)
             if face_helper.is_gray:
                 print('Grayscale input: True')
             face_helper.cropped_faces = [img]
@@ -203,7 +210,7 @@ if __name__ == '__main__':
                 restored_face = tensor2img(cropped_face_t, rgb2bgr=True, min_max=(-1, 1))
 
             restored_face = restored_face.astype('uint8')
-            face_helper.add_restored_face(restored_face)
+            face_helper.add_restored_face(restored_face, cropped_face)
 
         # paste_back
         if not args.has_aligned:
